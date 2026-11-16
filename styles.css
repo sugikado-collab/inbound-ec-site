@@ -1,0 +1,893 @@
+/* =================================================================
+   HANKO — preview build
+   -----------------------------------------------------------------
+   設計方針：ブレークポイント方式ではなく「比例スケーリング」方式。
+   1728px（モバイルは390px）でデザインした、という宣言を置き、
+   ルートの font-size を画面幅に比例させる。
+   以下すべての寸法を rem で書くことで、レイアウト全体が
+   比率を保ったまま伸び縮みする。
+
+   → 個々の要素に clamp() を書かない。書くのはルートに1回だけ。
+   ================================================================= */
+
+:root{
+  /* ---- 比例スケーリングの基準 ---------------------------------- */
+  --design-width: 1728;   /* この幅でデザインした */
+  --design-unit: 16;      /* そのときの基準文字サイズ */
+  --scale-min: 11px;      /* 縮みすぎの下限 */
+  --scale-max: 21px;      /* 伸びすぎの上限 */
+
+  /* ---- 色（黒 + 朱の2色。第3の色を足さない） ------------------- */
+  --ink:         #12110f;
+  --paper-dark:  #1c1a18;
+  --paper:       #f2efe8;
+  --vermillion:  #6C180F;
+  --vermillion-l:#6C180F;
+  --vermillion-d:#6C180F;
+  /* 暗い背景上の文字・数字専用。ボタン背景と印影には使わない。 */
+  --vermillion-text:#BD4551;
+  --fg:          #e8e4dc;
+  --fg-dim:      #8f8a82;
+  --fg-faint:    #5e5852;
+  --line:        #2e2b28;
+  --line-strong: #4a4540;
+
+  /* ---- 書体 ---------------------------------------------------- */
+  --serif-en: "Cormorant Garamond", Georgia, serif;
+  --serif-ja: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --sans:     "Inter", -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+
+  /* ---- 文字サイズ（rem。ルートに比例して全部動く） ------------- */
+  --fs-eyebrow:  0.875rem;   /* 14 */
+  --fs-caption:  0.75rem;    /* 12 */
+  --fs-small:    0.8125rem;  /* 13 */
+  --fs-ui:       0.875rem;   /* 14 */
+  --fs-body:     1.0625rem;  /* 17 */
+  --fs-h6:       1rem;       /* 16 */
+  --fs-h5:       1.25rem;    /* 20 */
+  --fs-h4:       1.5rem;     /* 24 */
+  --fs-h3:       2rem;       /* 32 */
+  --fs-h2:       3.5rem;     /* 56 */
+  --fs-h1:       5rem;       /* 80 */
+  --fs-impact:   7.5rem;     /* 120 */
+
+  /* ---- 行間 ---------------------------------------------------- */
+  --lh-tight: 1.06;
+  --lh-snug:  1.3;
+  --lh-body:  1.75;
+
+  /* ---- 字送り -------------------------------------------------- */
+  --ls-wide:   0.3em;
+  --ls-mid:    0.14em;
+  --ls-normal: 0.01em;
+
+  /* ---- 間隔 ---------------------------------------------------- */
+  --sp-4:   0.25rem;
+  --sp-8:   0.5rem;
+  --sp-12:  0.75rem;
+  --sp-16:  1rem;
+  --sp-20:  1.25rem;
+  --sp-24:  1.5rem;
+  --sp-32:  2rem;
+  --sp-40:  2.5rem;
+  --sp-56:  3.5rem;
+  --sp-72:  4.5rem;
+  --sp-96:  6rem;
+  --sp-128: 8rem;
+  --sp-160: 10rem;
+
+  /* ---- レイアウト ---------------------------------------------- */
+  --gap:            1.25rem;
+  --container-pad:  3.5rem;
+  --section-pad:    calc(var(--sp-128) + var(--gap));
+  --max-w:          77.5rem;   /* 1240px 相当 */
+  --nav-height:     3.75rem;
+
+  /* ---- 角丸 ---------------------------------------------------- */
+  --r-none: 0;
+  --r-sm:   0.5rem;
+  --r-md:   1.5rem;
+
+  /* ---- モーション ---------------------------------------------- */
+  --ease-default: cubic-bezier(0.65, 0.05, 0, 1);
+  --dur-default:  0.75s;
+  --dur-quick:    0.35s;
+  --motion-default: var(--dur-default) var(--ease-default);
+  --motion-quick:   var(--dur-quick) var(--ease-default);
+}
+
+/* -----------------------------------------------------------------
+   比例スケーリングの心臓部。ここ1か所で全体の縮尺が決まる。
+
+   ただし「全画面幅で比例」はしない。下限を 16px に置いてある。
+   設計幅1728pxに対して素直に比例させると、1440pxのノートPCで
+   ルートが13.3px、本文が14pxまで縮んで読めなくなるため。
+   1728px を超えたときだけ、大画面に合わせて伸びる。
+
+   （参考にした2サイトも、比例させているのはモバイル域だけだった。
+     片方は clamp(480px, 100vw, 767px) と書いていて 767px で頭打ち。
+     もう片方の除数 645 もモバイルの設計幅。）
+   ----------------------------------------------------------------- */
+html{
+  font-size: clamp(
+    16px,
+    calc(100vw / var(--design-width) * var(--design-unit)),
+    var(--scale-max)
+  );
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* モバイルはここで本領を発揮する。390px設計を画面幅に素直に比例させる */
+@media (max-width: 767px){
+  html{
+    font-size: clamp(
+      var(--scale-min),
+      calc(100vw / var(--design-width) * var(--design-unit)),
+      17px
+    );
+  }
+  :root{
+    --design-width: 390;
+    --scale-min: 13px;
+    --container-pad: 1.25rem;
+    --section-pad: var(--sp-72);
+    --fs-h1: 3.25rem;
+    --fs-h2: 2.25rem;
+    --fs-impact: 4rem;
+  }
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--fg);
+  font-family:var(--serif-en);
+  font-size:var(--fs-body);
+  line-height:var(--lh-body);
+  overflow-x:hidden;
+  position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+/* 四角い模様を含む紙画像は使用せず、背景色をそのまま表示する。 */
+html[lang="ja"] body{ font-family:var(--serif-ja); font-size:1rem; line-height:1.95; }
+
+img{ max-width:100%; display:block; }
+h1,h2,h3{ font-weight:400; margin:0; letter-spacing:var(--ls-normal); }
+p{ margin:0 0 1em; }
+a{ color:inherit; text-decoration:none; }
+
+/* ================= 共通パーツ ================= */
+.eyebrow{
+  font-family:var(--sans);
+  font-size:var(--fs-eyebrow); letter-spacing:var(--ls-wide); text-transform:uppercase;
+  color:var(--vermillion-text); margin:0 0 1.4em;
+}
+html[lang="ja"] .eyebrow{ letter-spacing:.24em; text-transform:none; }
+
+.lead{ color:var(--fg-dim); max-width:56ch; font-size:var(--fs-body); }
+
+.section{ padding:var(--section-pad) var(--container-pad); max-width:var(--max-w); margin-inline:auto; }
+.section-head{ margin-bottom:var(--sp-72); }
+.section-head h2{ font-size:var(--fs-h2); line-height:1.15; margin-bottom:.5em; font-weight:300; }
+html[lang="ja"] .section-head h2{ font-size:calc(var(--fs-h2) * .8); font-weight:500; }
+/* 日本語の大きな明朝体は字面の左余白が広いので、見出しの見た目の左端を揃える。 */
+html[lang="ja"] .meaning .section-head{ text-align:left; }
+html[lang="ja"] .meaning .section-head h2{ margin-left:-.12em; }
+html[lang="ja"] .meaning .section-head .lead{ margin-left:0; text-align:left; }
+
+.btn{
+  display:inline-block; font-family:var(--sans); font-size:var(--fs-small);
+  letter-spacing:.1em; padding:var(--sp-16) var(--sp-32);
+  border:1px solid transparent; cursor:pointer; border-radius:var(--r-none);
+  background:none; color:var(--fg);
+  transition:background var(--motion-quick), color var(--motion-quick), border-color var(--motion-quick);
+}
+.btn-primary{ background:var(--vermillion); border-color:var(--vermillion); color:#fff; }
+.btn-primary:hover{ background:var(--vermillion-l); border-color:var(--vermillion-l); }
+.btn-ghost{ border-color:var(--line-strong); color:var(--fg-dim); }
+.btn-ghost:hover{ border-color:var(--fg); color:var(--fg); }
+.btn-block{ display:block; width:100%; text-align:center; }
+
+/* reveal（軽量。frame-by-frame のような重い演出は避ける） */
+.reveal{ opacity:0; transform:translateY(var(--sp-20));
+  transition:opacity var(--motion-default), transform var(--motion-default); }
+.reveal.in{ opacity:1; transform:none; }
+@media (prefers-reduced-motion:reduce){
+  .reveal{opacity:1;transform:none;transition:none} html{scroll-behavior:auto}
+}
+
+/* 実写素材（Higgsfield生成）用。フェードではなく、わずかに引いたズームで入る */
+.reveal-img{ opacity:0; transform:scale(1.14);
+  transition:opacity 1.1s var(--ease-default), transform 1.9s var(--ease-default); }
+.reveal-img.in{ opacity:1; transform:scale(1); }
+@media (prefers-reduced-motion:reduce){
+  .reveal-img{ opacity:1; transform:none; transition:none; }
+}
+
+/* オープニング（プリローダー）は削除しました。
+   Higgsfield で素材を作ってから作り直す方針です。詳細は README を参照。 */
+
+/* ================= 文字のスクロール表示 =================
+   テキストを行単位に切り、各行を下から迫り上げる。
+   data-sweep を付けた要素は、朱色のバーが右へ抜けながら文字を出す。 */
+[data-split]{ visibility:hidden; }
+[data-split].is-split{ visibility:visible; }
+.sp-line{ display:block; overflow:hidden; position:relative; }
+.sp-line > .sp-inner{
+  display:block; transform:translateY(110%);
+  transition:transform var(--dur-default) var(--ease-default);
+  transition-delay:var(--sp-delay, 0s);
+}
+[data-split].in .sp-line > .sp-inner{ transform:none; }
+/* data-sweep の行だけ、バーの土台を実際の文字幅に合わせる
+   （.sp-line は本来コンテナ幅いっぱいに伸びるため、指定しないと
+   バーが文字の終わりを越えて余白まで伸びてしまう） */
+[data-sweep] .sp-line{ width:fit-content; }
+
+/* 朱色のバー。右端を軸に畳んで消える */
+.sp-line > .sp-bar{
+  position:absolute; inset:0; background:var(--vermillion);
+  transform-origin:left center; transform:scaleX(0);
+  transition:transform var(--dur-default) var(--ease-default);
+  transition-delay:var(--sp-delay, 0s);
+}
+[data-split].in .sp-line > .sp-bar{
+  transform-origin:right center; transform:scaleX(0);
+  animation:sp-sweep var(--dur-default) var(--ease-default) var(--sp-delay, 0s) both;
+}
+@keyframes sp-sweep{
+  0%   { transform-origin:left center;  transform:scaleX(0); }
+  45%  { transform-origin:left center;  transform:scaleX(1); }
+  55%  { transform-origin:right center; transform:scaleX(1); }
+  100% { transform-origin:right center; transform:scaleX(0); }
+}
+@media (prefers-reduced-motion:reduce){
+  [data-split]{ visibility:visible; }
+  .sp-line > .sp-inner{ transform:none; transition:none; }
+  .sp-line > .sp-bar{ display:none; }
+}
+
+/* data-color-reveal：赤いバーの代わりに、行がマスクでスライスしながら
+   淡いグレー→本来の色へフェードして現れる（landonorris.com の巨大な
+   ステートメント文を参考に、色だけを自分たちの配色で組み直したもの） */
+[data-color-reveal] .sp-line > .sp-inner{
+  color:var(--fg-faint);
+  transition:transform var(--dur-default) var(--ease-default),
+             color calc(var(--dur-default) * 1.4) var(--ease-default);
+  transition-delay:var(--sp-delay, 0s);
+}
+[data-color-reveal].in .sp-line > .sp-inner{ color:inherit; }
+@media (prefers-reduced-motion:reduce){
+  [data-color-reveal] .sp-line > .sp-inner{ color:inherit; transition:none; }
+}
+
+/* ================= STATEMENT（マーキー＋縮むカード） =================
+   背景の2行が逆方向へ流れ、手前のカードがスクロール量に応じて縮む。 */
+.statement{ height:220vh; position:relative; }
+.statement-pin{
+  position:sticky; top:0; height:100svh;
+  display:grid; place-items:center; overflow:hidden;
+}
+.marquee{
+  position:absolute; inset:0; z-index:0;
+  display:flex; flex-direction:column; justify-content:center; gap:var(--sp-8);
+  user-select:none; pointer-events:none;
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.marquee-track{ display:flex; width:max-content; will-change:transform; }
+.marquee-row{
+  display:flex; align-items:center; gap:var(--sp-40); padding-right:var(--sp-40);
+  font-size:var(--fs-impact); line-height:.92; white-space:nowrap;
+}
+.marquee-track.is-lead .marquee-row{
+  font-family:var(--sans); font-weight:500; letter-spacing:-.01em;
+  text-transform:uppercase; color:#2a2724;
+}
+.marquee-track.is-alt .marquee-row{
+  font-family:var(--serif-en); font-weight:300; font-style:italic;
+  text-transform:uppercase; color:var(--vermillion-text);
+}
+.marquee-sep{ color:var(--vermillion-text); font-family:var(--serif-ja); font-size:.55em; }
+
+/* 手前のカード。--k は 1（等倍）→ 0（最小）で JS から入る */
+.shrink-card{
+  position:relative; z-index:1; margin:0;
+  width:calc(var(--sc-min) + (var(--sc-max) - var(--sc-min)) * var(--k, 1));
+  --sc-max:34rem; --sc-min:13rem;
+  aspect-ratio:4/5; background:#0a0a09; border-radius:var(--r-sm);
+  display:grid; place-items:center; overflow:hidden;
+  box-shadow:0 1.6rem 3.4rem rgba(0,0,0,.65);
+  will-change:width;
+}
+.shrink-card img{ height:82%; width:auto;
+  filter:drop-shadow(-.6rem .8rem 1.3rem rgba(0,0,0,.8)); }
+@media (max-width:767px){
+  .statement{ height:180vh; }
+  .shrink-card{ --sc-max:19rem; --sc-min:9rem; }
+}
+@media (prefers-reduced-motion:reduce){
+  .statement{ height:auto; }
+  .statement-pin{ position:relative; height:auto; padding:var(--sp-96) 0; }
+}
+
+/* ================= カードの迫り上がり ================= */
+.card-rise{ transform:translateY(var(--sp-32)) scale(.96); transform-origin:50% 100%; }
+.card-rise.in{ transform:none; }
+@media (prefers-reduced-motion:reduce){ .card-rise{ transform:none; } }
+
+/* ================= COVERFLOW ================= */
+.cf{ margin-bottom:var(--sp-72); }
+.cf-stage{
+  position:relative; overflow:hidden; padding:var(--sp-40) 0;
+  cursor:grab; outline:none; touch-action:pan-y;
+  perspective:calc(var(--cf-card) * 3);
+  --cf-card:clamp(15rem, 26vw, 21rem);
+  /* カード高さ。中身（画像4:3＋文言＋ボタン）がちょうど収まる比率。
+     大きくするとボタン下に余白が出るので上げすぎない。 */
+  --cf-h:calc(var(--cf-card) * 1.5);
+}
+.cf-stage:active{ cursor:grabbing; }
+.cf-stage:focus-visible{ box-shadow:inset 0 0 0 1px var(--vermillion); }
+/* カードは商品カード型（画像＋品名＋説明＋価格＋ボタン）なので、
+   正方形ではなく縦長。--cf-h でリングの高さを合わせる。 */
+.cf-ring{ position:relative; height:var(--cf-h); transform-style:preserve-3d; }
+.cf-card{
+  position:absolute; left:50%; top:0;
+  width:var(--cf-card); height:var(--cf-h);
+  overflow:hidden;
+  display:grid; grid-template-rows:auto 1fr;
+  background:var(--paper-dark); border:1px solid var(--line);
+  box-shadow:0 1rem 2.2rem rgba(0,0,0,.6);
+  will-change:transform, opacity;
+  text-align:left;
+}
+/* 透過PNGなので、地色の上に直接置いて影だけで浮かせる */
+.cf-card-visual{
+  aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden;
+  padding:var(--sp-16);
+  background:
+    radial-gradient(ellipse 58% 48% at 50% 58%, rgba(250,246,238,.14), rgba(250,246,238,0) 72%),
+    #0a0a09;
+}
+.cf-card-visual img{
+  max-height:100%; max-width:100%; width:auto; height:auto;
+  filter:drop-shadow(-.5rem .7rem 1.1rem rgba(0,0,0,.75));
+}
+/* flex にして、説明文の行数が素材ごとに違ってもボタンが常に下端に付くようにする
+   （grid + align-content:start では margin-top:auto が効かず、下に余白が残る）。 */
+.cf-card-body{
+  padding:var(--sp-20); display:flex; flex-direction:column; gap:var(--sp-12);
+}
+.cf-card-body h3{ font-size:var(--fs-h6); font-weight:400; margin:0; }
+html[lang="ja"] .cf-card-body h3{ font-weight:600; }
+.cf-card-desc{
+  color:var(--fg-dim); font-size:var(--fs-small); line-height:1.7; margin:0;
+}
+.cf-card .price{ margin:0; }
+.cf-card .btn{ margin-top:auto; }
+.cf-caption{ text-align:center; margin-top:var(--sp-16); }
+.cf-name{ font-size:var(--fs-h4); margin:0 0 .3em; }
+html[lang="ja"] .cf-name{ font-weight:600; }
+.cf-sub{ font-family:var(--sans); font-size:var(--fs-caption); letter-spacing:.16em;
+  color:var(--fg-dim); text-transform:uppercase; margin:0; }
+html[lang="ja"] .cf-sub{ font-family:var(--serif-ja); text-transform:none; letter-spacing:.08em; }
+.cf-meta{ max-width:19rem; margin:var(--sp-24) auto 0; font-family:var(--sans);
+  font-size:var(--fs-small); }
+html[lang="ja"] .cf-meta{ font-family:var(--serif-ja); }
+.cf-meta > div{ display:flex; justify-content:space-between; padding:var(--sp-8) 0;
+  border-bottom:1px solid var(--line); }
+.cf-meta dt{ color:var(--fg-dim); }
+.cf-meta dd{ margin:0; }
+.cf-buy{ margin-top:var(--sp-24); }
+.cf-dots{ display:flex; gap:var(--sp-8); justify-content:center; margin-top:var(--sp-24); }
+.cf-dots button{ width:.45rem; height:.45rem; border-radius:50%; border:0; padding:0;
+  background:var(--fg); opacity:.28; cursor:pointer;
+  transition:opacity var(--motion-quick); }
+.cf-dots button[aria-current="true"]{ opacity:1; }
+
+/* ================= NAV ================= */
+.nav{
+  --vermillion:#853025;
+  --vermillion-l:#853025;
+  --vermillion-d:#853025;
+  position:fixed; inset:0 0 auto 0; z-index:50;
+  display:flex; align-items:center; gap:var(--sp-24);
+  min-height:var(--nav-height);
+  padding:var(--sp-16) var(--container-pad);
+  backdrop-filter:blur(.625rem);
+  background:linear-gradient(to bottom, rgba(18,17,15,.88), rgba(18,17,15,0));
+  transition:background var(--motion-quick);
+}
+.nav.solid{ background:rgba(18,17,15,.94); border-bottom:1px solid var(--line); }
+.brand{ display:flex; align-items:center; gap:var(--sp-8); margin-right:auto; }
+.brand-mark{
+  display:grid; place-items:center; width:1.875rem; height:1.875rem;
+  background:var(--vermillion); color:#fff; font-family:var(--serif-ja);
+  font-size:var(--fs-h6); line-height:1;
+}
+.brand-mark--seal{
+  display:block; background:none; object-fit:contain;
+  /* ブラウザによって file:// の CSS マスクが描画されないため、透過画像を直接表示する。 */
+  filter:sepia(.52) saturate(1.44) brightness(.74);
+  flex-shrink:0;
+}
+.brand-name{ font-family:var(--sans); font-size:var(--fs-small); letter-spacing:.34em; }
+.nav-links{ display:none; gap:var(--sp-32); font-family:var(--sans);
+  font-size:var(--fs-caption); letter-spacing:var(--ls-mid); color:var(--fg-dim); }
+.nav-links a{ transition:color var(--motion-quick); }
+.nav-links a:hover{ color:var(--fg); }
+.lang{ display:flex; align-items:center; gap:var(--sp-8); font-family:var(--sans);
+  font-size:var(--fs-caption); letter-spacing:var(--ls-mid); }
+.lang button{ background:none; border:0; color:var(--fg-dim); cursor:pointer;
+  padding:var(--sp-4) 2px; font:inherit; transition:color var(--motion-quick); }
+.lang button.is-active{ color:var(--vermillion-text); }
+.lang-sep{ color:var(--line-strong); }
+@media (min-width:900px){ .nav-links{ display:flex; } }
+@media (min-width:900px){
+  .nav-links, .lang{ font-size:14px; }
+}
+
+/* ================= HERO ================= */
+.hero{
+  position:relative; min-height:100svh;
+  display:grid; align-items:center;
+  padding:var(--sp-128) var(--container-pad) var(--sp-96);
+  max-width:var(--max-w); margin-inline:auto;
+}
+/* 写真を敷くのではなく、切り抜いた印鑑を1点だけ置く */
+.hero-visual{
+  position:absolute; inset:0; z-index:0;
+  display:flex; justify-content:flex-end; align-items:center;
+  padding-right:6vw; overflow:hidden; pointer-events:none;
+}
+.hero-bg-wrap{
+  position:absolute; inset:-10%; z-index:-1;
+  opacity:.5; mix-blend-mode:screen; will-change:transform;
+  animation:hero-bg-breathe 9s ease-in-out infinite;
+  /* 画像自体の縁がどこにあっても見えないよう、必ず円形にぼかして
+     周囲の地色へ溶け込ませる（画像の内容に依存しない安全策） */
+  -webkit-mask-image:radial-gradient(ellipse 60% 55% at 60% 42%, #000 35%, transparent 74%);
+  mask-image:radial-gradient(ellipse 60% 55% at 60% 42%, #000 35%, transparent 74%);
+}
+.hero-bg{ width:100%; height:100%; object-fit:cover; }
+.hero-hanko{
+  height:min(59svh, 32rem); width:auto; max-width:none;
+  filter:drop-shadow(-1.6rem 2.1rem 2.9rem rgba(0,0,0,.85));
+  opacity:.28;
+  transform:translateX(18%) rotate(3deg);
+  animation:hero-hanko-float 7s ease-in-out infinite,
+            hero-hanko-sway 11s ease-in-out 1.6s infinite;
+}
+/* FVに常時わずかな動きを与える。transform は静止姿勢(位置・傾き)で
+   使用中のため、独立して合成できる translate / rotate プロパティで動かす。
+   sway は「回転」ではなく数度の「傾き」に留める：この印鑑は1枚の
+   平面切り抜き画像なので、大きく回すと厚みのない紙のように見えてしまう。
+   スクロールを始めたら（body.is-scrolled）揺れを止める。 */
+@keyframes hero-hanko-float{
+  0%, 100%{ translate:0 0; }
+  50%{ translate:0 -1.6%; }
+}
+@keyframes hero-hanko-sway{
+  /* 0%をまっすぐ(0deg)にして、揺れ始める瞬間に前段の「まっすぐ」から
+     カクッと飛ばないようにする */
+  0%, 100%{ rotate:0deg; }
+  25%{ rotate:-2deg; }
+  75%{ rotate:2deg; }
+}
+body.is-scrolled .hero-hanko{ animation-play-state:running, paused; }
+@keyframes hero-bg-breathe{
+  0%, 100%{ opacity:.5; }
+  50%{ opacity:.66; }
+}
+@media (prefers-reduced-motion:reduce){
+  .hero-hanko, .hero-bg-wrap{ animation:none; }
+}
+
+/* 印鑑本体＋印影の入れ物。この箱自体はアニメーションしない
+   （中の印影・印鑑がそれぞれ独立して時間差で動くための、ただの土台）。
+   円の実サイズぶんの幅を持たせておくことで、flex（右寄せ）が
+   円の分の余白を最初から見込んでくれる（＝右端で切れない）。 */
+.hero-product{
+  position:relative; display:grid; place-items:center;
+  width:min(62svh, 34.5rem);
+}
+.hero-hanko-wrap{ position:relative; }
+.hero-circle{
+  position:absolute; z-index:-1;
+  width:100%; height:100%;
+  /* モバイルは文字と重なりやすいので控えめに。印鑑と同じ考え方。
+     登場演出のアニメーション終端でもこの値を使うよう変数にしておく */
+  --hero-circle-opacity:.5;
+  background:var(--vermillion);
+  -webkit-mask:url("assets/seal.png") center / 88% no-repeat;
+  mask:url("assets/seal.png") center / 88% no-repeat;
+}
+
+/* ================= HERO の登場演出 =================
+   ナビ・見出し回り・印影・印鑑を、それぞれ独立して時間差でフェード＋
+   スライドさせる。印影→印鑑の順で立ち上がるよう、印鑑側の入れ物
+   （.hero-hanko-wrap）と印影（.hero-circle）を別要素にして、
+   共通の親をアニメーションさせないようにしている
+   （親ごとフェードさせると、中の2つが親の透明度に引きずられて
+   同時に見えてしまうため）。 */
+.hero-fade{
+  opacity:0; transform:translateY(1.4rem);
+  animation:hero-fade-in .9s var(--ease-default) both;
+  animation-delay:var(--hf-delay, 0s);
+}
+/* 印鑑本体は、他の文字要素より大きく「下から迫り上がる」動きにする */
+.hero-hanko-wrap.hero-fade{
+  /* 登場時はまっすぐ下から。斜めの動きは着地後の待機中の揺れ（sway）で出す */
+  transform:translateY(4rem);
+  animation-duration:1.15s;
+}
+.hero-circle-fade{
+  opacity:0; transform:scale(.7);
+  animation:hero-circle-in 1s var(--ease-default) both;
+  animation-delay:var(--hf-delay, 0s);
+}
+@keyframes hero-fade-in{ to{ opacity:1; transform:none; } }
+@keyframes hero-circle-in{ to{ opacity:var(--hero-circle-opacity, 1); transform:scale(1); } }
+.nav{
+  opacity:0; transform:translateY(-.8rem);
+  animation:hero-fade-in .7s var(--ease-default) both;
+}
+@media (prefers-reduced-motion:reduce){
+  .hero-fade, .hero-circle-fade, .nav{ animation:none; opacity:1; transform:none; }
+}
+
+.hero-copy{ position:relative; z-index:1; max-width:40rem; }
+.hero-title{
+  font-size:var(--fs-h1); line-height:var(--lh-tight); font-weight:300;
+  margin-bottom:.5em; letter-spacing:-.01em;
+  /* ch ではなく em で指定。見出し自身の文字サイズを基準にすることで、
+     ビューポート幅が変わっても「Your name, / cut into stone.」の
+     2行の折り返し位置が崩れない */
+  max-width:12em;
+}
+html[lang="ja"] .hero-title{
+  font-size:calc(var(--fs-h1) * .78); font-weight:500;
+  letter-spacing:.02em; line-height:var(--lh-snug);
+}
+.hero-lead{ color:var(--fg-dim); max-width:44ch; margin-bottom:2.4em; }
+.hero-cta{ display:flex; flex-wrap:wrap; gap:var(--sp-12); }
+@media (min-width:900px){
+  .hero-visual{ padding-right:var(--sp-96); }
+  .hero-hanko{ opacity:1; height:min(64svh, 35rem); transform:none; }
+  .hero-circle{ --hero-circle-opacity:1; }
+}
+
+/* FV film: the footage fills the screen and a scrim melts its edges into the
+   page, the way index_video4.html does. No band of ground colour under the nav,
+   and no visible rectangle where the film starts. */
+.hero-film .hero-visual{
+  padding:0; left:calc(50% - 50vw); right:calc(50% - 50vw);
+  top:0; bottom:0;
+}
+.hero-film .hero-title .sp-inner{ white-space:nowrap; }
+.hero-film-video, .hero-film-poster{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:contain; object-position:center;
+  background:var(--ink);   /* fills the moment before the film loads */
+}
+/* The scrim. Three jobs, in this order:
+   darken the left so the copy reads; settle the corners; and carry the
+   letterbox bands into the page so the join never shows as a line.
+   --hero-band is the measured band height (hero-video.js writes it), so the
+   join stays hidden whatever the screen ratio. */
+.hero-film .hero-visual::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:
+    linear-gradient(90deg,
+      rgba(18,17,15,.92) 0%,
+      rgba(18,17,15,.74) 28%,
+      rgba(18,17,15,.26) 52%,
+      rgba(18,17,15,0) 70%,
+      rgba(18,17,15,.06) 100%),
+    radial-gradient(ellipse 92% 88% at 62% 47%,
+      transparent 58%, rgba(18,17,15,.34) 100%),
+    linear-gradient(180deg,
+      rgba(18,17,15,1) 0%,
+      rgba(18,17,15,1) var(--hero-band, 0%),
+      rgba(18,17,15,0) calc(var(--hero-band, 0%) + 9%),
+      rgba(18,17,15,0) calc(100% - var(--hero-band, 0%) - 9%),
+      rgba(18,17,15,1) calc(100% - var(--hero-band, 0%)),
+      rgba(18,17,15,1) 100%),
+    linear-gradient(180deg,
+      rgba(18,17,15,.55) 0%,
+      rgba(18,17,15,0) 14%,
+      rgba(18,17,15,0) 84%,
+      rgba(18,17,15,.55) 100%);
+}
+.hero-film-video{ opacity:1; }
+.hero-film-poster{ display:none; }
+.hero-visual:has(.hero-film-video.has-error) .hero-film-poster{ display:block; }
+.hero-film-video.has-error{ opacity:0; }
+/* On a tall screen a contained 16:9 film leaves bands too deep to melt away,
+   so there the film covers the screen instead and sits behind the copy. */
+@media (max-width:899px){
+  .hero-film .hero-visual{ opacity:.45; }
+  .hero-film-video, .hero-film-poster{
+    inset:auto; top:50%; left:50%;
+    width:auto; height:min(100%, 160vw); max-width:none;
+    aspect-ratio:16 / 9;
+    transform:translate(-70.36%, -50%);
+  }
+  .hero-film .hero-visual::after{
+    background:
+      linear-gradient(180deg,
+        rgba(18,17,15,.86) 0%,
+        rgba(18,17,15,.58) 44%,
+        rgba(18,17,15,.90) 100%);
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .hero-film-video{ display:none; }
+  .hero-film-poster{ display:block; }
+}
+
+/* ================= MEANING ================= */
+.compare{ margin-bottom:var(--sp-96); overflow-x:auto; }
+.compare table{ width:100%; border-collapse:collapse; font-family:var(--sans);
+  font-size:var(--fs-ui); min-width:32.5rem; }
+html[lang="ja"] .compare table{ font-family:var(--serif-ja); font-size:0.9375rem; }
+.compare th, .compare td{ text-align:left; padding:var(--sp-16) var(--sp-20);
+  border-bottom:1px solid var(--line); vertical-align:top; }
+.compare thead th{ font-weight:400; font-size:var(--fs-eyebrow); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--fg-dim); }
+html[lang="ja"] .compare thead th{ font-size:var(--fs-small); letter-spacing:.1em; text-transform:none; }
+.compare td:first-child{ color:var(--fg-dim); width:22%; }
+.compare .hl{ color:var(--fg); background:rgba(108,24,15,.07); }
+.compare thead .hl{ color:var(--vermillion-text); }
+
+.notes{ display:grid; gap:var(--sp-56); grid-template-columns:1fr; }
+@media (min-width:820px){ .notes{ grid-template-columns:repeat(3,1fr); } }
+.note-num{ font-family:var(--sans); font-size:var(--fs-eyebrow); letter-spacing:.2em;
+  color:var(--vermillion-text); display:block; margin-bottom:var(--sp-12); }
+.note h3{ font-size:var(--fs-h4); margin-bottom:.6em; font-weight:400; }
+html[lang="ja"] .note h3{ font-size:calc(var(--fs-h4) * .88); font-weight:600; }
+.note p{ color:var(--fg-dim); font-size:var(--fs-ui); margin:0; }
+@media (min-width:768px){
+  .eyebrow{ font-size:1rem; }
+  .note-num{ font-size:1.125rem; }
+  .note p{ font-size:1rem; }
+  html[lang="ja"] .note h3{ font-size:var(--fs-h4); }
+}
+
+/* ================= SCENE（全画面1枚+一文） =================
+   写真が主役の全画面セクション。パララックスで奥行きを出す。 */
+.scene{
+  position:relative; height:100svh; min-height:26rem;
+  overflow:hidden; display:grid; place-items:center;
+  isolation:isolate;
+}
+/* 上下だけ余白を持たせる（パララックスの移動ぶん）。左右まで広げると
+   object-fit:cover の基準が横に伸び、横長の画面で被写体が寄りすぎるため。 */
+.scene-img-wrap{ position:absolute; inset:-10% 0; z-index:-2; will-change:transform; }
+.scene-img{ width:100%; height:100%; object-fit:cover; }
+/* 写真そのものは加工せず、CSSだけで「暗がりの中に一点だけ光が当たっている」
+   雰囲気を作る。2層構成:
+   1) ビネット … 四隅と周縁を落として、中央の被写体だけを浮かび上がらせる
+   2) 縦グラデ … 上をわずかに、下を強く落として文字を読ませる
+   画面幅が変わっても効果は常に同じようにかかる（写真の切り取られ方に依存しない）。 */
+.scene-overlay{
+  position:absolute; inset:0; z-index:-1;
+  background:
+    radial-gradient(ellipse 68% 62% at 52% 46%,
+      rgba(18,17,15,0) 32%,
+      rgba(18,17,15,.42) 68%,
+      rgba(18,17,15,.78) 88%,
+      rgba(18,17,15,.92) 100%),
+    linear-gradient(180deg,
+      rgba(18,17,15,1) 0%,      /* 上端は地色と完全一致させて、前セクションとの継ぎ目を消す */
+      rgba(18,17,15,.42) 5%,
+      rgba(18,17,15,.12) 42%,
+      rgba(18,17,15,.45) 74%,
+      rgba(18,17,15,.88) 92%,
+      rgba(18,17,15,1) 100%);   /* 下端も同様。写真の切れ端が線として見えなくなる */
+}
+.scene-line{
+  max-width:24ch; text-align:center; padding:0 var(--container-pad);
+  font-size:var(--fs-h2); font-weight:300; line-height:1.25;
+  text-shadow:none;
+}
+html[lang="ja"] .scene-line{ font-weight:500; font-size:calc(var(--fs-h2) * .74); }
+
+/* ================= PREVIEW ================= */
+.preview-panel{
+  display:grid; gap:var(--sp-72); align-items:center; grid-template-columns:minmax(0, 1fr);
+  border:1px solid var(--line); padding:var(--sp-56);
+  background:rgba(0,0,0,.25);
+}
+@media (min-width:820px){ .preview-panel{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); } }
+/* スマホ幅では余白を詰める。詰めないと印影（canvas＋紙の余白）が枠からはみ出す */
+@media (max-width:819px){
+  .preview-panel{ padding:var(--sp-24); gap:var(--sp-40); }
+}
+.label-row{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-16); }
+.preview-form label{ display:block; font-family:var(--sans); font-size:var(--fs-eyebrow);
+  letter-spacing:.22em; text-transform:uppercase; color:var(--fg-dim); margin-bottom:var(--sp-12); }
+html[lang="ja"] .preview-form label{ font-size:var(--fs-small); letter-spacing:.1em; text-transform:none; }
+.script-toggle{ display:flex; gap:2px; margin-bottom:var(--sp-12); flex-shrink:0; }
+.toggle-label{ font-family:var(--sans); font-size:var(--fs-eyebrow); letter-spacing:.22em;
+  text-transform:uppercase; color:var(--fg-dim); }
+html[lang="ja"] .toggle-label{ font-size:var(--fs-small); letter-spacing:.1em; text-transform:none; }
+.script-btn{
+  font-family:var(--sans); font-size:var(--fs-caption); letter-spacing:.06em;
+  padding:var(--sp-4) var(--sp-12); border:1px solid var(--line);
+  background:none; color:var(--fg-dim); cursor:pointer;
+  transition:border-color var(--motion-quick), color var(--motion-quick), background-color var(--motion-quick);
+}
+.script-btn:hover{ color:var(--fg); }
+.script-btn.is-active{ background:var(--vermillion); border-color:var(--vermillion); color:#fff; }
+#nameInput{
+  width:100%; background:transparent; border:0; border-bottom:1px solid var(--line-strong);
+  color:var(--fg); font-family:var(--serif-en); font-size:var(--fs-h3);
+  padding:var(--sp-4) 0 var(--sp-12); outline:none;
+  transition:border-color var(--motion-quick);
+}
+#nameInput:focus{ border-color:var(--vermillion); }
+.field-note{ font-family:var(--sans); font-size:var(--fs-caption); color:var(--fg-dim);
+  margin:var(--sp-12) 0 var(--sp-24); }
+html[lang="ja"] .field-note{ font-family:var(--serif-ja); font-size:var(--fs-small); }
+.chips{ display:flex; flex-wrap:wrap; gap:var(--sp-8); }
+.chip{
+  font-family:var(--sans); font-size:var(--fs-caption); letter-spacing:.06em;
+  padding:var(--sp-8) var(--sp-16); border:1px solid var(--line);
+  background:none; color:var(--fg-dim); cursor:pointer;
+  transition:border-color var(--motion-quick), color var(--motion-quick);
+}
+.chip:hover{ border-color:var(--vermillion); color:var(--fg); }
+
+/* 書体・文字バランスの選択肢。各見本は入力中の名前で描かれた小さな印影。 */
+.option-block{ margin-top:var(--sp-32); }
+.option-block .toggle-label{ display:block; margin-bottom:var(--sp-12); }
+/* 3列固定。書体が2つでも枠の大きさを揃え、書体を増やしたときもそのまま並ぶ */
+.seal-options{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--sp-12); max-width:22rem; }
+.seal-opt{
+  display:grid; justify-items:center; align-content:start; gap:var(--sp-8);
+  padding:var(--sp-8) var(--sp-8) var(--sp-12);
+  border:1px solid var(--line); background:none; color:var(--fg-dim); cursor:pointer;
+  transition:border-color var(--motion-quick), color var(--motion-quick);
+}
+.seal-opt canvas{ width:100%; max-width:4.5rem; height:auto; aspect-ratio:1; display:block;
+  transition:opacity var(--motion-quick); }
+.seal-opt-name{ font-family:var(--sans); font-size:var(--fs-caption); letter-spacing:.06em; }
+html[lang="ja"] .seal-opt-name{ font-family:var(--serif-ja); font-size:var(--fs-small); }
+.seal-opt-sub{ font-family:var(--sans); font-size:.6875rem; line-height:1.3; color:var(--fg-dim);
+  margin-top:calc(var(--sp-4) * -1); text-align:center; }
+html[lang="ja"] .seal-opt-sub{ font-family:var(--serif-ja); }
+.seal-opt:hover:not(:disabled){ border-color:var(--line-strong); color:var(--fg); }
+.seal-opt.is-active{ border-color:var(--vermillion); color:var(--fg); }
+/* 選べない選択肢は見本と名前だけ沈め、理由（「漢字のみ」）は読めるまま残す */
+.seal-opt:disabled{ cursor:not-allowed; }
+.seal-opt:disabled canvas{ opacity:.3; }
+.seal-opt:disabled .seal-opt-name{ color:var(--fg-faint); }
+/* 選べるときは「漢字のみ」は不要。高さを揃えるため visibility で隠す */
+.seal-opt:not(:disabled) .seal-opt-sub{ visibility:hidden; }
+
+.preview-stage{ margin:0; text-align:center; }
+/* 透明な印影の下余白を抑え、名前を近づける。 */
+.paper-sheet{
+  background:transparent; padding:var(--sp-32) var(--sp-32) 0; display:inline-block; vertical-align:bottom;
+}
+@media (max-width:819px){ .paper-sheet{ padding:var(--sp-16) var(--sp-16) 0; } }
+/* 名前を入力するたび、印を捺した瞬間のように軽く弾ませる */
+.paper-sheet.is-stamped{ animation:stamp-press .35s cubic-bezier(.3,1.6,.4,1); }
+@keyframes stamp-press{
+  0%{ transform:scale(1) rotate(0deg); }
+  35%{ transform:scale(1.045) rotate(-.6deg); }
+  100%{ transform:scale(1) rotate(0deg); }
+}
+@media (prefers-reduced-motion:reduce){
+  .paper-sheet.is-stamped{ animation:none; }
+}
+#sealCanvas{ width:min(18.75rem, 62vw); height:auto; display:block; }
+.preview-stage figcaption{ margin-top:var(--sp-8); display:grid; gap:var(--sp-8); }
+.reading{ font-family:var(--serif-ja); font-size:var(--fs-h5); letter-spacing:.22em; color:var(--fg); }
+.disclaimer{ font-family:var(--sans); font-size:var(--fs-caption); color:var(--fg-dim); }
+html[lang="ja"] .disclaimer{ font-family:var(--serif-ja); font-size:var(--fs-small); }
+
+/* ================= CRAFT ================= */
+.craft-grid{ display:grid; gap:var(--sp-40); grid-template-columns:1fr; align-items:stretch; }
+@media (min-width:900px){ .craft-grid{ grid-template-columns:0.85fr 1.15fr; } }
+/* 実写素材は白背景で明るいので、そのままだとサイトの暗い世界観から浮く。
+   position:relative + ::after のビネットで周縁を落とし、画像側も
+   コントラストを上げて彩度を少し下げ、朱色だけが残るように整える。 */
+.craft-visual{
+  position:relative;
+  margin:0; overflow:hidden; border-radius:0;
+  aspect-ratio:4/3; background:#0a0a09;
+}
+@media (min-width:900px){ .craft-visual{ aspect-ratio:auto; height:100%; } }
+.craft-visual img{
+  width:100%; height:100%; object-fit:cover;
+  /* 右手が入る程度に右寄せ。寄せすぎると指輪まで写り込む */
+  object-position:66% 50%;
+  /* 暗く沈めつつ、コントラストは上げすぎない。上げすぎると紺の作務衣が
+     黒に潰れて背景と同化し、手だけが暗闇に浮いて見えてしまう。 */
+  filter:brightness(.76) contrast(1.04) saturate(.86);
+}
+.craft-visual::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 78% 74% at 50% 46%,
+      rgba(18,17,15,0) 40%,
+      rgba(18,17,15,.32) 74%,
+      rgba(18,17,15,.64) 100%),
+    linear-gradient(180deg,
+      rgba(18,17,15,.26) 0%,
+      rgba(18,17,15,0) 36%,
+      rgba(18,17,15,.38) 100%);
+}
+
+.steps{ list-style:none; margin:0; padding:0; display:grid; gap:1px; background:var(--line); }
+@media (min-width:900px){ .steps{ grid-template-columns:repeat(2,1fr); } }
+.steps li{ background:var(--ink); padding:var(--sp-40); }
+.step-n{ font-family:var(--serif-ja); font-size:var(--fs-h3); color:var(--vermillion-text);
+  display:block; margin-bottom:var(--sp-16); line-height:1; }
+.steps h3{ font-size:var(--fs-h5); margin-bottom:.6em; font-weight:400; }
+html[lang="ja"] .steps h3{ font-weight:600; font-size:calc(var(--fs-h5) * .9); }
+.steps p{ color:var(--fg-dim); font-size:var(--fs-ui); margin:0; }
+
+/* ================= SHOP ================= */
+.cards{ display:grid; gap:var(--sp-40); grid-template-columns:1fr; }
+@media (min-width:760px){ .cards{ grid-template-columns:repeat(3,1fr); } }
+.card{ border:1px solid var(--line); padding:0 0 var(--sp-32); background:rgba(0,0,0,.2); }
+.card-visual{
+  aspect-ratio:4/3; overflow:hidden; margin-bottom:var(--sp-24);
+  display:grid; place-items:center;
+  background:#0a0a09; border-bottom:1px solid var(--line);
+}
+.card-visual img{
+  width:auto; height:78%; object-fit:contain;
+  filter:drop-shadow(-.625rem .75rem 1.25rem rgba(0,0,0,.8));
+}
+.card h3, .card p, .card button{ margin-inline:var(--sp-24); }
+.card h3{ font-size:var(--fs-h6); margin-bottom:.6em; font-weight:400; }
+html[lang="ja"] .card h3{ font-weight:600; }
+.card-body{ color:var(--fg-dim); font-size:var(--fs-ui); }
+.price{ font-family:var(--sans); font-size:var(--fs-h6); letter-spacing:.04em; margin-bottom:1.4em; }
+.price-sub{ color:var(--fg-dim); font-size:var(--fs-small); margin-left:var(--sp-8); }
+.card button{ width:calc(100% - 2 * var(--sp-24)); }
+.shop-note{ font-family:var(--sans); font-size:var(--fs-caption); color:var(--fg-faint);
+  margin-top:var(--sp-32); }
+html[lang="ja"] .shop-note{ font-family:var(--serif-ja); font-size:var(--fs-small); }
+
+/* ================= CLOSER ================= */
+.closer{
+  position:relative; text-align:center; padding:var(--sp-160) var(--container-pad);
+  overflow:hidden; isolation:isolate;
+}
+.closer-bg-wrap{ position:absolute; inset:-10%; z-index:-2; opacity:.55; will-change:transform; }
+.closer-bg{ width:100%; height:100%; object-fit:cover; }
+.closer-scrim{
+  position:absolute; inset:0; z-index:-1;
+  background:radial-gradient(ellipse at center, rgba(18,17,15,.4) 0%, rgba(18,17,15,.93) 72%);
+}
+.closer-line{ font-size:var(--fs-h2); font-weight:300; max-width:22ch;
+  margin-inline:auto; line-height:1.35; }
+html[lang="ja"] .closer-line{ font-weight:500; font-size:calc(var(--fs-h2) * .78); }
+
+/* ================= FOOTER ================= */
+.footer{ border-top:1px solid var(--line);
+  padding:var(--sp-72) var(--container-pad) var(--sp-40); }
+.footer-cols{ display:grid; gap:var(--sp-40); grid-template-columns:1fr;
+  max-width:var(--max-w); margin-inline:auto; }
+@media (min-width:760px){ .footer-cols{ grid-template-columns:2fr 1fr 1fr; } }
+.footer-note{ color:var(--fg-dim); font-size:var(--fs-ui); max-width:32ch; margin-top:var(--sp-16); }
+.footer ul{ list-style:none; margin:0; padding:0; display:grid; gap:var(--sp-12);
+  font-family:var(--sans); font-size:var(--fs-small); color:var(--fg-dim); }
+html[lang="ja"] .footer ul{ font-family:var(--serif-ja); font-size:var(--fs-ui); }
+.footer ul a{ transition:color var(--motion-quick); }
+.footer ul a:hover{ color:var(--fg); }
+.copyright{ font-family:var(--sans); font-size:var(--fs-caption); color:var(--fg-faint);
+  margin:var(--sp-56) auto 0; max-width:var(--max-w); }
+
+/* 日本語版のみ表示（特商法など法定表記） */
+.ja-only{ display:none; }
+html[lang="ja"] .ja-only{ display:block; }
